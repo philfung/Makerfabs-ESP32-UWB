@@ -52,6 +52,14 @@ volatile byte    DW1000RangingClass::_expectedMsgId;
 volatile boolean DW1000RangingClass::_useRangeFilter = false;
 uint16_t DW1000RangingClass::_rangeFilterValue = 15;
 
+//payload storage
+uint32_t DW1000RangingClass::_rangePayloadDataType = 0;
+uint32_t DW1000RangingClass::_rangePayloadDataValue = 0;
+uint32_t DW1000RangingClass::_rangeReportPayloadDataType = 0;
+uint32_t DW1000RangingClass::_rangeReportPayloadDataValue = 0;
+boolean DW1000RangingClass::_rangePayloadReceived = false;
+boolean DW1000RangingClass::_rangeReportPayloadReceived = false;
+
 // message sent/received state
 volatile boolean DW1000RangingClass::_sentAck     = false;
 volatile boolean DW1000RangingClass::_receivedAck = false;
@@ -568,7 +576,7 @@ void DW1000RangingClass::loop() {
 						//we need to test if this value is for us:
 						//we grab the mac address of each devices:
 						byte shortAddress[2];
-						memcpy(shortAddress, data+SHORT_MAC_LEN+2+i*17, 2);
+						memcpy(shortAddress, data+SHORT_MAC_LEN+2+i*25, 2);
 						
 						//we test if the short address is our address
 						if(shortAddress[0] == _currentShortAddress[0] && shortAddress[1] == _currentShortAddress[1]) {
@@ -579,9 +587,18 @@ void DW1000RangingClass::loop() {
 							
 							if(!_protocolFailed) {
 								
-								myDistantDevice->timePollSent.setTimestamp(data+SHORT_MAC_LEN+4+17*i);
-								myDistantDevice->timePollAckReceived.setTimestamp(data+SHORT_MAC_LEN+9+17*i);
-								myDistantDevice->timeRangeSent.setTimestamp(data+SHORT_MAC_LEN+14+17*i);
+								myDistantDevice->timePollSent.setTimestamp(data+SHORT_MAC_LEN+4+25*i);
+								myDistantDevice->timePollAckReceived.setTimestamp(data+SHORT_MAC_LEN+9+25*i);
+								myDistantDevice->timeRangeSent.setTimestamp(data+SHORT_MAC_LEN+14+25*i);
+								
+								//extract payload data
+								uint32_t payloadDataType, payloadDataValue;
+								memcpy(&payloadDataType, data+SHORT_MAC_LEN+19+25*i, 4);
+								memcpy(&payloadDataValue, data+SHORT_MAC_LEN+23+25*i, 4);
+								myDistantDevice->setRangePayload(payloadDataType, payloadDataValue);
+								_rangePayloadDataType = payloadDataType;
+								_rangePayloadDataValue = payloadDataValue;
+								_rangePayloadReceived = true;
 								
 								// (re-)compute range as two-way ranging is done
 								DW1000Time myTOF;
@@ -653,6 +670,15 @@ void DW1000RangingClass::loop() {
 					float curRXPower;
 					memcpy(&curRXPower, data+5+SHORT_MAC_LEN, 4);
 					
+					//extract payload data
+					uint32_t payloadDataType, payloadDataValue;
+					memcpy(&payloadDataType, data+9+SHORT_MAC_LEN, 4);
+					memcpy(&payloadDataValue, data+13+SHORT_MAC_LEN, 4);
+					myDistantDevice->setRangeReportPayload(payloadDataType, payloadDataValue);
+					_rangeReportPayloadDataType = payloadDataType;
+					_rangeReportPayloadDataValue = payloadDataValue;
+					_rangeReportPayloadReceived = true;
+					
 					if (_useRangeFilter) {
 						//Skip first range
 						if (myDistantDevice->getRange() != 0.0f) {
@@ -693,6 +719,35 @@ void DW1000RangingClass::setRangeFilterValue(uint16_t newValue) {
 	}else{
 		_rangeFilterValue = newValue;
 	}
+}
+
+//payload functions
+void DW1000RangingClass::setRangePayload(uint32_t dataType, uint32_t dataValue) {
+	_rangePayloadDataType = dataType;
+	_rangePayloadDataValue = dataValue;
+}
+
+void DW1000RangingClass::setRangeReportPayload(uint32_t dataType, uint32_t dataValue) {
+	_rangeReportPayloadDataType = dataType;
+	_rangeReportPayloadDataValue = dataValue;
+}
+
+boolean DW1000RangingClass::getRangePayload(uint32_t* dataType, uint32_t* dataValue) {
+	if (_rangePayloadReceived) {
+		*dataType = _rangePayloadDataType;
+		*dataValue = _rangePayloadDataValue;
+		return true;
+	}
+	return false;
+}
+
+boolean DW1000RangingClass::getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue) {
+	if (_rangeReportPayloadReceived) {
+		*dataType = _rangeReportPayloadDataType;
+		*dataValue = _rangeReportPayloadDataValue;
+		return true;
+	}
+	return false;
 }
 
 
@@ -871,15 +926,18 @@ void DW1000RangingClass::transmitRange(DW1000Device* myDistantDevice) {
 		
 		for(uint8_t i = 0; i < _networkDevicesNumber; i++) {
 			//we write the short address of our device:
-			memcpy(data+SHORT_MAC_LEN+2+17*i, _networkDevices[i].getByteShortAddress(), 2);
+			memcpy(data+SHORT_MAC_LEN+2+25*i, _networkDevices[i].getByteShortAddress(), 2);
 			
 			
 			//we get the device which correspond to the message which was sent (need to be filtered by MAC address)
 			_networkDevices[i].timeRangeSent = timeRangeSent;
-			_networkDevices[i].timePollSent.getTimestamp(data+SHORT_MAC_LEN+4+17*i);
-			_networkDevices[i].timePollAckReceived.getTimestamp(data+SHORT_MAC_LEN+9+17*i);
-			_networkDevices[i].timeRangeSent.getTimestamp(data+SHORT_MAC_LEN+14+17*i);
+			_networkDevices[i].timePollSent.getTimestamp(data+SHORT_MAC_LEN+4+25*i);
+			_networkDevices[i].timePollAckReceived.getTimestamp(data+SHORT_MAC_LEN+9+25*i);
+			_networkDevices[i].timeRangeSent.getTimestamp(data+SHORT_MAC_LEN+14+25*i);
 			
+			//add payload data
+			memcpy(data+SHORT_MAC_LEN+19+25*i, &_rangePayloadDataType, 4);
+			memcpy(data+SHORT_MAC_LEN+23+25*i, &_rangePayloadDataValue, 4);
 		}
 		
 		copyShortAddress(_lastSentToShortAddress, shortBroadcast);
@@ -913,6 +971,9 @@ void DW1000RangingClass::transmitRangeReport(DW1000Device* myDistantDevice) {
 	//We add the Range and then the RXPower
 	memcpy(data+1+SHORT_MAC_LEN, &curRange, 4);
 	memcpy(data+5+SHORT_MAC_LEN, &curRXPower, 4);
+	//add payload data
+	memcpy(data+9+SHORT_MAC_LEN, &_rangeReportPayloadDataType, 4);
+	memcpy(data+13+SHORT_MAC_LEN, &_rangeReportPayloadDataValue, 4);
 	copyShortAddress(_lastSentToShortAddress, myDistantDevice->getByteShortAddress());
 	transmit(data, DW1000Time(_replyDelayTimeUS, DW1000Time::MICROSECONDS));
 }
@@ -987,6 +1048,3 @@ float DW1000RangingClass::filterValue(float value, float previousValue, uint16_t
 	float k = 2.0f / ((float)numberOfElements + 1.0f);
 	return (value * k) + previousValue * (1.0f - k);
 }
-
-
-

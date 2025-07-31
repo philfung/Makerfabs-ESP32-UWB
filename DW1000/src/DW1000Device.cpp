@@ -28,9 +28,22 @@
 //Constructor and destructor
 DW1000Device::DW1000Device() {
 	randomShortAddress();
+	_rangePayloadReceived = false;
+	_rangeReportPayloadReceived = false;
+	_rangePayloadDataType = 0;
+	_rangePayloadDataValue = 0;
+	_rangeReportPayloadDataType = 0;
+	_rangeReportPayloadDataValue = 0;
 }
 
 DW1000Device::DW1000Device(byte deviceAddress[], boolean shortOne) {
+	_rangePayloadReceived = false;
+	_rangeReportPayloadReceived = false;
+	_rangePayloadDataType = 0;
+	_rangePayloadDataValue = 0;
+	_rangeReportPayloadDataType = 0;
+	_rangeReportPayloadDataValue = 0;
+	
 	if(!shortOne) {
 		//we have a 8 bytes address
 		setAddress(deviceAddress);
@@ -43,6 +56,13 @@ DW1000Device::DW1000Device(byte deviceAddress[], boolean shortOne) {
 }
 
 DW1000Device::DW1000Device(byte deviceAddress[], byte shortAddress[]) {
+	_rangePayloadReceived = false;
+	_rangeReportPayloadReceived = false;
+	_rangePayloadDataType = 0;
+	_rangePayloadDataValue = 0;
+	_rangeReportPayloadDataType = 0;
+	_rangeReportPayloadDataValue = 0;
+	
 	//we have a 8 bytes address
 	setAddress(deviceAddress);
 	//we set the 2 bytes address
@@ -137,6 +157,37 @@ boolean DW1000Device::isInactive() {
 	//One second of inactivity
 	if(millis()-_activity > INACTIVITY_TIME) {
 		_activity = millis();
+		return true;
+	}
+	return false;
+}
+
+//payload functions
+void DW1000Device::setRangePayload(uint32_t dataType, uint32_t dataValue) {
+	_rangePayloadDataType = dataType;
+	_rangePayloadDataValue = dataValue;
+	_rangePayloadReceived = true;
+}
+
+void DW1000Device::setRangeReportPayload(uint32_t dataType, uint32_t dataValue) {
+	_rangeReportPayloadDataType = dataType;
+	_rangeReportPayloadDataValue = dataValue;
+	_rangeReportPayloadReceived = true;
+}
+
+boolean DW1000Device::getRangePayload(uint32_t* dataType, uint32_t* dataValue) {
+	if (_rangePayloadReceived) {
+		*dataType = _rangePayloadDataType;
+		*dataValue = _rangePayloadDataValue;
+		return true;
+	}
+	return false;
+}
+
+boolean DW1000Device::getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue) {
+	if (_rangeReportPayloadReceived) {
+		*dataType = _rangeReportPayloadDataType;
+		*dataValue = _rangeReportPayloadDataValue;
 		return true;
 	}
 	return false;

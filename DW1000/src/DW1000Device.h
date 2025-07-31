@@ -57,6 +57,12 @@ public:
 	
 	void setIndex(int8_t index) { _index = index; }
 	
+	//payload functions
+	void setRangePayload(uint32_t dataType, uint32_t dataValue);
+	void setRangeReportPayload(uint32_t dataType, uint32_t dataValue);
+	boolean getRangePayload(uint32_t* dataType, uint32_t* dataValue);
+	boolean getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue);
+	
 	//getters
 	uint16_t getReplyTime() { return _replyDelayTimeUS; }
 	
@@ -102,6 +108,14 @@ private:
 	int16_t _RXPower;
 	int16_t _FPPower;
 	int16_t _quality;
+	
+	//payload storage
+	uint32_t _rangePayloadDataType;
+	uint32_t _rangePayloadDataValue;
+	uint32_t _rangeReportPayloadDataType;
+	uint32_t _rangeReportPayloadDataValue;
+	boolean  _rangePayloadReceived;
+	boolean  _rangeReportPayloadReceived;
 	
 	void randomShortAddress();
 	
