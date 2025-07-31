@@ -187,10 +187,10 @@ public:
 	static void setRangeFilterValue(uint16_t newValue);
 	
 	//payload functions
-	static void setRangePayload(uint32_t dataType, uint32_t dataValue);
-	static void setRangeReportPayload(uint32_t dataType, uint32_t dataValue);
-	static boolean getRangePayload(uint32_t* dataType, uint32_t* dataValue);
-	static boolean getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue);
+	static void setPayloadFromTag(uint32_t dataType, uint32_t dataValue);
+	static void setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue);
+	static boolean getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue);
+	static boolean getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue);
 	
 	//Handlers:
 	static void attachNewRange(void (* handleNewRange)(void)) { _handleNewRange = handleNewRange; };

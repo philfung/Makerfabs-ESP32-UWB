@@ -65,14 +65,14 @@ void updateResponsePayload() {
   if (responseCounter % 5 == 0) {
     // Send command every 5th response
     uint32_t command = 0x100; // Example command code
-    DW1000Ranging.setRangeReportPayload(PAYLOAD_TYPE_COMMAND, command);
+    DW1000Ranging.setPayloadFromAnchor(PAYLOAD_TYPE_COMMAND, command);
   } else if (responseCounter % 3 == 0) {
     // Send heartbeat every 3rd response
-    DW1000Ranging.setRangeReportPayload(PAYLOAD_TYPE_HEARTBEAT, responseCounter);
+    DW1000Ranging.setPayloadFromAnchor(PAYLOAD_TYPE_HEARTBEAT, responseCounter);
   } else {
     // Send anchor status (uptime in seconds)
     anchorStatus = millis() / 1000;
-    DW1000Ranging.setRangeReportPayload(PAYLOAD_TYPE_STATUS, anchorStatus);
+    DW1000Ranging.setPayloadFromAnchor(PAYLOAD_TYPE_STATUS, anchorStatus);
   }
 }
 
@@ -88,7 +88,7 @@ void newRange() {
   
   // Check for received payload from RANGE message
   uint32_t dataType, dataValue;
-  if (DW1000Ranging.getRangePayload(&dataType, &dataValue)) {
+  if (DW1000Ranging.getPayloadFromTag(&dataType, &dataValue)) {
     Serial.print("\t RX Payload: Type=0x");
     Serial.print(dataType, HEX);
     Serial.print(" Value=");

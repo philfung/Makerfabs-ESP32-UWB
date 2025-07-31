@@ -58,10 +58,10 @@ public:
 	void setIndex(int8_t index) { _index = index; }
 	
 	//payload functions
-	void setRangePayload(uint32_t dataType, uint32_t dataValue);
-	void setRangeReportPayload(uint32_t dataType, uint32_t dataValue);
-	boolean getRangePayload(uint32_t* dataType, uint32_t* dataValue);
-	boolean getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue);
+	void setPayloadFromTag(uint32_t dataType, uint32_t dataValue);
+	void setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue);
+	boolean getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue);
+	boolean getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue);
 	
 	//getters
 	uint16_t getReplyTime() { return _replyDelayTimeUS; }

@@ -64,15 +64,15 @@ void updatePayloadData() {
   
   if (messageCounter % 4 == 0) {
     // Send heartbeat every 4th message
-    DW1000Ranging.setRangePayload(PAYLOAD_TYPE_HEARTBEAT, messageCounter);
+    DW1000Ranging.setPayloadFromTag(PAYLOAD_TYPE_HEARTBEAT, messageCounter);
   } else if (messageCounter % 3 == 0) {
     // Send status every 3rd message
     uint32_t status = (millis() / 1000) % 256; // Simple status based on uptime
-    DW1000Ranging.setRangePayload(PAYLOAD_TYPE_STATUS, status);
+    DW1000Ranging.setPayloadFromTag(PAYLOAD_TYPE_STATUS, status);
   } else {
     // Send sensor data (simulated)
     sensorValue = analogRead(A0); // Read from analog pin
-    DW1000Ranging.setRangePayload(PAYLOAD_TYPE_SENSOR_DATA, sensorValue);
+    DW1000Ranging.setPayloadFromTag(PAYLOAD_TYPE_SENSOR_DATA, sensorValue);
   }
 }
 
@@ -88,7 +88,7 @@ void newRange() {
   
   // Check for received payload from RANGE_REPORT
   uint32_t dataType, dataValue;
-  if (DW1000Ranging.getRangeReportPayload(&dataType, &dataValue)) {
+  if (DW1000Ranging.getPayloadFromAnchor(&dataType, &dataValue)) {
     Serial.print("\t RX Payload: Type=0x");
     Serial.print(dataType, HEX);
     Serial.print(" Value=");

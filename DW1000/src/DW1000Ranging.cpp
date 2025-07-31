@@ -595,7 +595,7 @@ void DW1000RangingClass::loop() {
 								uint32_t payloadDataType, payloadDataValue;
 								memcpy(&payloadDataType, data+SHORT_MAC_LEN+19+25*i, 4);
 								memcpy(&payloadDataValue, data+SHORT_MAC_LEN+23+25*i, 4);
-								myDistantDevice->setRangePayload(payloadDataType, payloadDataValue);
+								myDistantDevice->setPayloadFromTag(payloadDataType, payloadDataValue);
 								_rangePayloadDataType = payloadDataType;
 								_rangePayloadDataValue = payloadDataValue;
 								_rangePayloadReceived = true;
@@ -674,7 +674,7 @@ void DW1000RangingClass::loop() {
 					uint32_t payloadDataType, payloadDataValue;
 					memcpy(&payloadDataType, data+9+SHORT_MAC_LEN, 4);
 					memcpy(&payloadDataValue, data+13+SHORT_MAC_LEN, 4);
-					myDistantDevice->setRangeReportPayload(payloadDataType, payloadDataValue);
+					myDistantDevice->setPayloadFromAnchor(payloadDataType, payloadDataValue);
 					_rangeReportPayloadDataType = payloadDataType;
 					_rangeReportPayloadDataValue = payloadDataValue;
 					_rangeReportPayloadReceived = true;
@@ -722,17 +722,17 @@ void DW1000RangingClass::setRangeFilterValue(uint16_t newValue) {
 }
 
 //payload functions
-void DW1000RangingClass::setRangePayload(uint32_t dataType, uint32_t dataValue) {
+void DW1000RangingClass::setPayloadFromTag(uint32_t dataType, uint32_t dataValue) {
 	_rangePayloadDataType = dataType;
 	_rangePayloadDataValue = dataValue;
 }
 
-void DW1000RangingClass::setRangeReportPayload(uint32_t dataType, uint32_t dataValue) {
+void DW1000RangingClass::setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue) {
 	_rangeReportPayloadDataType = dataType;
 	_rangeReportPayloadDataValue = dataValue;
 }
 
-boolean DW1000RangingClass::getRangePayload(uint32_t* dataType, uint32_t* dataValue) {
+boolean DW1000RangingClass::getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue) {
 	if (_rangePayloadReceived) {
 		*dataType = _rangePayloadDataType;
 		*dataValue = _rangePayloadDataValue;
@@ -741,7 +741,7 @@ boolean DW1000RangingClass::getRangePayload(uint32_t* dataType, uint32_t* dataVa
 	return false;
 }
 
-boolean DW1000RangingClass::getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue) {
+boolean DW1000RangingClass::getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue) {
 	if (_rangeReportPayloadReceived) {
 		*dataType = _rangeReportPayloadDataType;
 		*dataValue = _rangeReportPayloadDataValue;

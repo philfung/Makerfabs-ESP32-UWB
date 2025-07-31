@@ -163,19 +163,19 @@ boolean DW1000Device::isInactive() {
 }
 
 //payload functions
-void DW1000Device::setRangePayload(uint32_t dataType, uint32_t dataValue) {
+void DW1000Device::setPayloadFromTag(uint32_t dataType, uint32_t dataValue) {
 	_rangePayloadDataType = dataType;
 	_rangePayloadDataValue = dataValue;
 	_rangePayloadReceived = true;
 }
 
-void DW1000Device::setRangeReportPayload(uint32_t dataType, uint32_t dataValue) {
+void DW1000Device::setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue) {
 	_rangeReportPayloadDataType = dataType;
 	_rangeReportPayloadDataValue = dataValue;
 	_rangeReportPayloadReceived = true;
 }
 
-boolean DW1000Device::getRangePayload(uint32_t* dataType, uint32_t* dataValue) {
+boolean DW1000Device::getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue) {
 	if (_rangePayloadReceived) {
 		*dataType = _rangePayloadDataType;
 		*dataValue = _rangePayloadDataValue;
@@ -184,7 +184,7 @@ boolean DW1000Device::getRangePayload(uint32_t* dataType, uint32_t* dataValue) {
 	return false;
 }
 
-boolean DW1000Device::getRangeReportPayload(uint32_t* dataType, uint32_t* dataValue) {
+boolean DW1000Device::getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue) {
 	if (_rangeReportPayloadReceived) {
 		*dataType = _rangeReportPayloadDataType;
 		*dataValue = _rangeReportPayloadDataValue;
