@@ -27,7 +27,7 @@ void setup()
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     DW1000Ranging.initCommunication(PIN_RST, PIN_SS, PIN_IRQ); //Reset, CS, IRQ pin
     //define the sketch as anchor. It will be great to dynamically change the type of module
-    DW1000Ranging.attachNewRange(newRange);
+    DW1000Ranging.attachNewRange(UWBnewRange);
     DW1000Ranging.attachBlinkDevice(newBlink);
     DW1000Ranging.attachInactiveDevice(inactiveDevice);
     //Enable the filter to smooth the distance
@@ -49,7 +49,7 @@ void loop()
     DW1000Ranging.loop();
 }
 
-void newRange()
+void UWBnewRange()
 {
     Serial.print("from: ");
     Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);

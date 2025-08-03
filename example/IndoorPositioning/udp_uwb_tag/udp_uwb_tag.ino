@@ -56,7 +56,7 @@ void setup()
     //init the configuration
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     DW1000Ranging.initCommunication(PIN_RST, DW_CS, PIN_IRQ);
-    DW1000Ranging.attachNewRange(newRange);
+    DW1000Ranging.attachNewRange(UWBnewRange);
     DW1000Ranging.attachNewDevice(newDevice);
     DW1000Ranging.attachInactiveDevice(inactiveDevice);
 
@@ -77,7 +77,7 @@ void loop()
     }
 }
 
-void newRange()
+void UWBnewRange()
 {
     char c[30];
 
