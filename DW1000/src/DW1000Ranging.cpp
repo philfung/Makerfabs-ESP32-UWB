@@ -525,7 +525,15 @@ void DW1000RangingClass::loop() {
 			if(_type == ANCHOR) {
 				if(messageType != _expectedMsgId) {
 					// unexpected message, start over again (except if already POLL)
-					_protocolFailed = true;
+					if(messageType != POLL) {
+						_protocolFailed = true;
+						if(DEBUG) {
+							Serial.print("Protocol error: expected ");
+							Serial.print(_expectedMsgId);
+							Serial.print(", got ");
+							Serial.println(messageType);
+						}
+					}
 				}
 				if(messageType == POLL) {
 					//we receive a POLL which is a broacast message
@@ -533,7 +541,24 @@ void DW1000RangingClass::loop() {
 					int16_t numberDevices = 0;
 					memcpy(&numberDevices, data+SHORT_MAC_LEN+1, 1);
 					
+					// Add bounds checking for message parsing robustness
+					if(numberDevices > MAX_DEVICES || numberDevices <= 0) {
+						if(DEBUG) {
+							Serial.print("Invalid number of devices in POLL: ");
+							Serial.println(numberDevices);
+						}
+						return;
+					}
+					
 					for(uint16_t i = 0; i < numberDevices; i++) {
+						// Check if we have enough data for this device entry
+						if(SHORT_MAC_LEN+2+i*4+4 > LEN_DATA) {
+							if(DEBUG) {
+								Serial.println("POLL message truncated");
+							}
+							return;
+						}
+						
 						//we need to test if this value is for us:
 						//we grab the mac address of each devices:
 						byte shortAddress[2];
@@ -571,8 +596,24 @@ void DW1000RangingClass::loop() {
 					uint8_t numberDevices = 0;
 					memcpy(&numberDevices, data+SHORT_MAC_LEN+1, 1);
 					
+					// Add bounds checking for message parsing robustness
+					if(numberDevices > MAX_DEVICES || numberDevices <= 0) {
+						if(DEBUG) {
+							Serial.print("Invalid number of devices in RANGE: ");
+							Serial.println(numberDevices);
+						}
+						return;
+					}
 					
 					for(uint8_t i = 0; i < numberDevices; i++) {
+						// Check if we have enough data for this device entry (25 bytes per device)
+						if(SHORT_MAC_LEN+2+i*25+25 > LEN_DATA) {
+							if(DEBUG) {
+								Serial.println("RANGE message truncated");
+							}
+							return;
+						}
+						
 						//we need to test if this value is for us:
 						//we grab the mac address of each devices:
 						byte shortAddress[2];
@@ -853,8 +894,8 @@ void DW1000RangingClass::transmitPoll(DW1000Device* myDistantDevice) {
 	transmitInit();
 	
 	if(myDistantDevice == nullptr) {
-		//we need to set our timerDelay:
-		_timerDelay = DEFAULT_TIMER_DELAY+(uint16_t)(_networkDevicesNumber*3*DEFAULT_REPLY_DELAY_TIME/1000);
+		//we need to set our timerDelay with better scaling for multiple anchors:
+		_timerDelay = DEFAULT_TIMER_DELAY+(uint16_t)(_networkDevicesNumber*4*DEFAULT_REPLY_DELAY_TIME/1000);
 		
 		byte shortBroadcast[2] = {0xFF, 0xFF};
 		_globalMac.generateShortMACFrame(data, _currentShortAddress, shortBroadcast);
@@ -863,8 +904,8 @@ void DW1000RangingClass::transmitPoll(DW1000Device* myDistantDevice) {
 		data[SHORT_MAC_LEN+1] = _networkDevicesNumber;
 		
 		for(uint8_t i = 0; i < _networkDevicesNumber; i++) {
-			//each devices have a different reply delay time.
-			_networkDevices[i].setReplyTime((2*i+1)*DEFAULT_REPLY_DELAY_TIME);
+			//each devices have a different reply delay time with better separation
+			_networkDevices[i].setReplyTime((3*i+2)*DEFAULT_REPLY_DELAY_TIME);
 			//we write the short address of our device:
 			memcpy(data+SHORT_MAC_LEN+2+4*i, _networkDevices[i].getByteShortAddress(), 2);
 			
@@ -911,8 +952,8 @@ void DW1000RangingClass::transmitRange(DW1000Device* myDistantDevice) {
 	
 	
 	if(myDistantDevice == nullptr) {
-		//we need to set our timerDelay:
-		_timerDelay = DEFAULT_TIMER_DELAY+(uint16_t)(_networkDevicesNumber*3*DEFAULT_REPLY_DELAY_TIME/1000);
+		//we need to set our timerDelay with better scaling for multiple anchors:
+		_timerDelay = DEFAULT_TIMER_DELAY+(uint16_t)(_networkDevicesNumber*4*DEFAULT_REPLY_DELAY_TIME/1000);
 		
 		byte shortBroadcast[2] = {0xFF, 0xFF};
 		_globalMac.generateShortMACFrame(data, _currentShortAddress, shortBroadcast);
