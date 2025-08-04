@@ -47,7 +47,7 @@ void setup()
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     DW1000Ranging.initCommunication(UWB_RST, UWB_SS, UWB_IRQ); // Reset, CS, IRQ pin
 
-    DW1000Ranging.attachNewRange(UWBnewRange);
+    DW1000Ranging.attachNewRange(newRange);
     DW1000Ranging.attachBlinkDevice(newBlink);
     DW1000Ranging.attachInactiveDevice(inactiveDevice);
 
@@ -59,7 +59,7 @@ void loop()
     DW1000Ranging.loop();
 }
 
-void UWBnewRange()
+void newRange()
 {
     Serial.print("from: ");
     Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);

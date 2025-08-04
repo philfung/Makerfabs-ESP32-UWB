@@ -33,7 +33,7 @@ void setup() {
   DW1000Ranging.initCommunication(PIN_RST, PIN_SS, PIN_IRQ); //Reset, CS, IRQ pin
   
   //define the sketch as anchor
-  DW1000Ranging.attachNewRange(UWBnewRange);
+  DW1000Ranging.attachNewRange(newRange);
   DW1000Ranging.attachBlinkDevice(newBlink);
   DW1000Ranging.attachInactiveDevice(inactiveDevice);
   
@@ -76,7 +76,7 @@ void updateResponsePayload() {
   }
 }
 
-void UWBnewRange() {
+void newRange() {
   Serial.print("from: "); 
   Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);
   Serial.print("\t Range: "); 

@@ -55,7 +55,7 @@ void setup()
 
     // UWB init
     DW1000Ranging.initCommunication(UWB_RST, UWB_SS, UWB_IRQ); // Reset, CS, IRQ pin
-    DW1000Ranging.attachNewRange(UWBnewRange);
+    DW1000Ranging.attachNewRange(newRange);
     DW1000Ranging.attachNewDevice(newDevice);
     DW1000Ranging.attachInactiveDevice(inactiveDevice);
     DW1000Ranging.startAsTag(TAG_ADDR, DW1000.MODE_LONGDATA_RANGE_LOWPOWER);
@@ -98,7 +98,7 @@ void loop()
 }
 
 // UWB function
-void UWBnewRange()
+void newRange()
 {
     char c[30];
 

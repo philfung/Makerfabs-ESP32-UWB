@@ -28,22 +28,11 @@
 //Constructor and destructor
 DW1000Device::DW1000Device() {
 	randomShortAddress();
-	_rangePayloadReceived = false;
-	_rangeReportPayloadReceived = false;
-	_rangePayloadDataType = 0;
-	_rangePayloadDataValue = 0;
-	_rangeReportPayloadDataType = 0;
-	_rangeReportPayloadDataValue = 0;
+	// Initialize per-device protocol state
+	resetProtocolState();
 }
 
 DW1000Device::DW1000Device(byte deviceAddress[], boolean shortOne) {
-	_rangePayloadReceived = false;
-	_rangeReportPayloadReceived = false;
-	_rangePayloadDataType = 0;
-	_rangePayloadDataValue = 0;
-	_rangeReportPayloadDataType = 0;
-	_rangeReportPayloadDataValue = 0;
-	
 	if(!shortOne) {
 		//we have a 8 bytes address
 		setAddress(deviceAddress);
@@ -53,20 +42,17 @@ DW1000Device::DW1000Device(byte deviceAddress[], boolean shortOne) {
 		//we have a short address (2 bytes)
 		setShortAddress(deviceAddress);
 	}
+	// Initialize per-device protocol state
+	resetProtocolState();
 }
 
 DW1000Device::DW1000Device(byte deviceAddress[], byte shortAddress[]) {
-	_rangePayloadReceived = false;
-	_rangeReportPayloadReceived = false;
-	_rangePayloadDataType = 0;
-	_rangePayloadDataValue = 0;
-	_rangeReportPayloadDataType = 0;
-	_rangeReportPayloadDataValue = 0;
-	
 	//we have a 8 bytes address
 	setAddress(deviceAddress);
 	//we set the 2 bytes address
 	setShortAddress(shortAddress);
+	// Initialize per-device protocol state
+	resetProtocolState();
 }
 
 DW1000Device::~DW1000Device() {
@@ -162,33 +148,36 @@ boolean DW1000Device::isInactive() {
 	return false;
 }
 
-//payload functions
-void DW1000Device::setPayloadFromTag(uint32_t dataType, uint32_t dataValue) {
-	_rangePayloadDataType = dataType;
-	_rangePayloadDataValue = dataValue;
-	_rangePayloadReceived = true;
+// NEW: Per-device protocol state management methods
+void DW1000Device::resetProtocolState() {
+	_protocolState = PROTOCOL_IDLE;
+	_expectedMsgId = MSG_POLL;
+	_sentAck = false;
+	_receivedAck = false;
+	_protocolFailed = false;
+	_lastProtocolActivity = millis();
 }
 
-void DW1000Device::setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue) {
-	_rangeReportPayloadDataType = dataType;
-	_rangeReportPayloadDataValue = dataValue;
-	_rangeReportPayloadReceived = true;
+boolean DW1000Device::isProtocolActive() {
+	return (_protocolState != PROTOCOL_IDLE && _protocolState != PROTOCOL_FAILED);
 }
 
-boolean DW1000Device::getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue) {
-	if (_rangePayloadReceived) {
-		*dataType = _rangePayloadDataType;
-		*dataValue = _rangePayloadDataValue;
+void DW1000Device::handleProtocolTimeout() {
+	_protocolState = PROTOCOL_FAILED;
+	_protocolFailed = true;
+	_sentAck = false;
+	_receivedAck = false;
+}
+
+boolean DW1000Device::isProtocolTimedOut(uint32_t timeoutMs) {
+	if (!isProtocolActive()) {
+		return false;
+	}
+	
+	uint32_t currentTime = millis();
+	if (currentTime - _lastProtocolActivity > timeoutMs) {
 		return true;
 	}
-	return false;
-}
-
-boolean DW1000Device::getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue) {
-	if (_rangeReportPayloadReceived) {
-		*dataType = _rangeReportPayloadDataType;
-		*dataValue = _rangeReportPayloadDataValue;
-		return true;
-	}
+	
 	return false;
 }

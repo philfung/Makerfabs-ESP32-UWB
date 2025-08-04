@@ -24,89 +24,7 @@
  * - do not safe duplicate of pin settings
  * - maybe other object structure
  * - use enums instead of preprocessor constants
- *
- * Explanation of the ranging protocol:
- * 
- * 1. BLINK (4)
- *    - Purpose: Initial discovery message sent by TAG devices
- *    - Direction: TAG → ANCHOR (broadcast)
- *    - Content: Contains the TAG's full 8-byte EUI address and 2-byte short address
- *    - Usage: When a TAG wants to join the network, it broadcasts a BLINK message 
- *             to announce its presence
- *    - Frame Type: Special blink frame (not standard MAC frame)
- * 
- * 2. RANGING_INIT (5)
- *    - Purpose: Response to BLINK message, sent by ANCHOR to initiate ranging
- *    - Direction: ANCHOR → TAG (unicast)
- *    - Content: Sent as a long MAC frame, contains ANCHOR's information
- *    - Usage: When an ANCHOR receives a BLINK from a new TAG, it responds with 
- *             RANGING_INIT to establish the ranging relationship
- * 
- * 3. POLL (0)
- *    - Purpose: Initiates the ranging measurement sequence
- *    - Direction: TAG → ANCHOR(s)
- *    - Content: Can be broadcast (0xFFFF) or unicast to specific ANCHOR
- *    - Usage: TAG sends POLL to start the two-way ranging process
- *    - Frame Type: Short MAC frame
- * 
- * 4. POLL_ACK (1)
- *    - Purpose: Acknowledges receipt of POLL message
- *    - Direction: ANCHOR → TAG
- *    - Content: Simple acknowledgment with timing information
- *    - Usage: Each ANCHOR responds to the POLL with POLL_ACK after a calculated delay
- * 
- * 5. RANGE (2)
- *    - Purpose: Final ranging message containing timing data and optional payload
- *    - Direction: TAG → ANCHOR(s)
- *    - Content: Contains timestamps from previous messages (POLL sent, POLL_ACK 
- *               received, RANGE sent) plus optional 8-byte payload (4 bytes dataType, 
- *               4 bytes dataValue)
- *    - Usage: TAG collects all timing information and sends it back to ANCHOR(s) 
- *             for range calculation. Can include application-specific data.
- *    - Payload Format: [ShortAddr(2)][Timing(15)][Payload(8)] per device
- * 
- * 6. RANGE_REPORT (3)
- *    - Purpose: Reports the calculated range back to the TAG with optional payload
- *    - Direction: ANCHOR → TAG
- *    - Content: Contains the calculated distance (in meters), RX power level, plus 
- *               optional 8-byte payload (4 bytes dataType, 4 bytes dataValue)
- *    - Usage: After ANCHOR calculates the range using the timestamps from RANGE 
- *             message, it sends the result back to TAG. Can include application-specific data.
- *    - Payload Format: [Range(4)][RXPower(4)][Payload(8)]
- * 
- * 7. RANGE_FAILED (255)
- *    - Purpose: Indicates ranging process failed
- *    - Direction: ANCHOR → TAG
- *    - Content: Simple failure notification
- *    - Usage: Sent when ranging calculation fails or protocol times out
- * 
- * MESSAGE FLOW EXAMPLES:
- * 
- * For a new TAG joining the network:
- *   1. TAG → ANCHOR: BLINK (broadcast)
- *   2. ANCHOR → TAG: RANGING_INIT (unicast)
- * 
- * For ranging measurement:
- *   1. TAG → ANCHOR(s): POLL (broadcast or unicast)
- *   2. ANCHOR → TAG: POLL_ACK (after delay)
- *   3. TAG → ANCHOR(s): RANGE (with timing data)
- *   4. ANCHOR → TAG: RANGE_REPORT (with calculated distance)
- * 
- * FRAME TYPES:
- * 
- * The messages use two different MAC frame formats:
- *   - Long MAC Frame: Used for RANGING_INIT messages
- *   - Short MAC Frame: Used for POLL, POLL_ACK, RANGE, RANGE_REPORT, and RANGE_FAILED messages
- *   - Blink Frame: Special format used only for BLINK messages
- * 
- * These message types work together to implement a complete UWB ranging protocol 
- * that allows devices to discover each other and measure distances accurately using 
- * time-of-flight calculations.
  */
-
-
-#ifndef _DW1000Ranging_H_INCLUDED
-#define _DW1000Ranging_H_INCLUDED
 
 #include "DW1000.h"
 #include "DW1000Time.h"
@@ -122,11 +40,9 @@
 #define BLINK 4
 #define RANGING_INIT 5
 
-// Data buffer size - increased from 90 to 120 bytes to accommodate payload functionality
-// Maximum message size: RANGE broadcast with 4 devices = 9 (MAC) + 1 (type) + 1 (count) + 100 (4×25 per device) = 111 bytes
-#define LEN_DATA 120
+#define LEN_DATA 90
 
-//Max devices we put in the networkDevices array ! Each DW1000Device is 74 Bytes in SRAM memory for now.
+//Max devices we put in the networkDevices array ! Each DW1000Device is now larger due to per-device state
 #define MAX_DEVICES 4
 
 //Default Pin for module:
@@ -151,6 +67,16 @@
 #define DEBUG false
 #endif
 
+// NEW: Message queue structure for concurrent processing
+struct MessageQueueItem {
+	byte data[LEN_DATA];
+	byte sourceAddress[2];
+	uint32_t timestamp;
+	int messageType;
+	boolean processed;
+};
+
+#define MESSAGE_QUEUE_SIZE 8
 
 class DW1000RangingClass {
 public:
@@ -186,12 +112,6 @@ public:
 	// Used for the smoothing algorithm (Exponential Moving Average). newValue must be >= 2. Default 15.
 	static void setRangeFilterValue(uint16_t newValue);
 	
-	//payload functions
-	static void setPayloadFromTag(uint32_t dataType, uint32_t dataValue);
-	static void setPayloadFromAnchor(uint32_t dataType, uint32_t dataValue);
-	static boolean getPayloadFromTag(uint32_t* dataType, uint32_t* dataValue);
-	static boolean getPayloadFromAnchor(uint32_t* dataType, uint32_t* dataValue);
-	
 	//Handlers:
 	static void attachNewRange(void (* handleNewRange)(void)) { _handleNewRange = handleNewRange; };
 	
@@ -201,10 +121,25 @@ public:
 	
 	static void attachInactiveDevice(void (* handleInactiveDevice)(DW1000Device*)) { _handleInactiveDevice = handleInactiveDevice; };
 	
+	// NEW: Multi-anchor specific handlers
+	static void attachRangeComplete(void (* handleRangeComplete)(DW1000Device*)) { _handleRangeComplete = handleRangeComplete; };
 	
+	static void attachProtocolError(void (* handleProtocolError)(DW1000Device*, int)) { _handleProtocolError = handleProtocolError; };
 	
 	static DW1000Device* getDistantDevice();
 	static DW1000Device* searchDistantDevice(byte shortAddress[]);
+	
+	// NEW: Multi-anchor support methods
+	static void processDeviceMessages();
+	static void handleDeviceTimeout();
+	static boolean isAnyDeviceActive();
+	static void resetAllDeviceStates();
+	static int getActiveDeviceCount();
+	
+	// NEW: Message queue methods
+	static boolean enqueueMessage(byte data[], byte sourceAddress[], int messageType);
+	static boolean dequeueMessage(MessageQueueItem* item);
+	static void clearMessageQueue();
 	
 	//FOR DEBUGGING
 	static void visualizeDatas(byte datas[]);
@@ -228,16 +163,28 @@ private:
 	static void (* _handleNewDevice)(DW1000Device*);
 	static void (* _handleInactiveDevice)(DW1000Device*);
 	
+	// NEW: Multi-anchor specific handlers
+	static void (* _handleRangeComplete)(DW1000Device*);
+	static void (* _handleProtocolError)(DW1000Device*, int);
+	
 	//sketch type (tag or anchor)
 	static int16_t          _type; //0 for tag and 1 for anchor
-	// TODO check type, maybe enum?
-	// message flow state
-	static volatile byte    _expectedMsgId;
-	// message sent/received state
-	static volatile boolean _sentAck;
-	static volatile boolean _receivedAck;
-	// protocol error state
-	static boolean          _protocolFailed;
+	
+	// REMOVED: Global protocol state variables (now per-device)
+	// static volatile byte    _expectedMsgId;
+	// static volatile boolean _sentAck;
+	// static volatile boolean _receivedAck;
+	// static boolean          _protocolFailed;
+	
+	// NEW: Message queue for concurrent processing
+	static MessageQueueItem _messageQueue[MESSAGE_QUEUE_SIZE];
+	static volatile uint8_t _queueHead;
+	static volatile uint8_t _queueTail;
+	static volatile uint8_t _queueCount;
+	
+	// NEW: Current processing device index for round-robin
+	static uint8_t _currentProcessingDevice;
+	
 	// reset line to the chip
 	static uint8_t     _RST;
 	static uint8_t     _SS;
@@ -254,13 +201,6 @@ private:
 	//ranging filter
 	static volatile boolean _useRangeFilter;
 	static uint16_t         _rangeFilterValue;
-	//payload storage
-	static uint32_t         _rangePayloadDataType;
-	static uint32_t         _rangePayloadDataValue;
-	static uint32_t         _rangeReportPayloadDataType;
-	static uint32_t         _rangeReportPayloadDataValue;
-	static boolean          _rangePayloadReceived;
-	static boolean          _rangeReportPayloadReceived;
 	//_bias correction
 	static char  _bias_RSL[17]; // TODO remove or use
 	//17*2=34 bytes in SRAM
@@ -279,6 +219,10 @@ private:
 	static void checkForReset();
 	static void checkForInactiveDevices();
 	static void copyShortAddress(byte address1[], byte address2[]);
+	
+	// NEW: Per-device message processing
+	static void processDeviceMessage(DW1000Device* device, byte data[], int messageType);
+	static void handleDeviceProtocolState(DW1000Device* device, int messageType);
 	
 	//for ranging protocole (ANCHOR)
 	static void transmitInit();
@@ -305,5 +249,3 @@ private:
 };
 
 extern DW1000RangingClass DW1000Ranging;
-
-#endif
