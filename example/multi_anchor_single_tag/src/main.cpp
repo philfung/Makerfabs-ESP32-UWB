@@ -1,23 +1,4 @@
-/*
- * Multi-Anchor UWB Tag Example
- * 
- * This example demonstrates how to use the refactored DW1000Ranging library
- * with multiple anchors for improved positioning accuracy.
- * 
- * The tag will automatically discover and range with multiple anchors,
- * providing distance measurements to each anchor independently.
- * 
- * Hardware Requirements:
- * - ESP32 UWB development board (tag)
- * - Multiple ESP32 UWB development boards (anchors)
- * - DW1000 UWB modules
- * 
- * Wiring:
- * - Follow standard DW1000 wiring for ESP32
- * - RST: GPIO 27
- * - SS: GPIO 4
- * - IRQ: GPIO 34
- */
+#include <Arduino.h>
 
 #include <SPI.h>
 #include "DW1000Ranging.h"
@@ -47,6 +28,20 @@ int anchorCount = 0;
 uint32_t totalRanges = 0;
 uint32_t lastStatsTime = 0;
 uint32_t rangesPerSecond = 0;
+
+void newRange();
+void rangeComplete(DW1000Device* device);
+void protocolError(DW1000Device* device, int errorCode);
+void newDevice(DW1000Device* device);
+void inactiveDevice(DW1000Device* device);
+void addAnchor(DW1000Device* device);
+void updateAnchorInfo(DW1000Device* device);
+int getActiveAnchorCount();
+void checkInactiveAnchors();
+void printStatistics();
+void calculatePosition();
+void printDeviceInfo();
+void triggerRanging();
 
 void setup() {
     Serial.begin(115200);
@@ -79,9 +74,9 @@ void setup() {
     DW1000Ranging.attachRangeComplete(rangeComplete);
     DW1000Ranging.attachProtocolError(protocolError);
     
-    // Enable range filtering for more stable readings
-    DW1000Ranging.useRangeFilter(true);
-    DW1000Ranging.setRangeFilterValue(10);
+    // // Enable range filtering for more stable readings
+    // DW1000Ranging.useRangeFilter(true);
+    // DW1000Ranging.setRangeFilterValue(10);
     
     Serial.println("Tag initialized. Waiting for anchors...");
     Serial.println();
@@ -330,8 +325,8 @@ void printDeviceInfo() {
     Serial.println(TAG_ADDR);
     Serial.print("Network Devices: ");
     Serial.println(DW1000Ranging.getNetworkDevicesNumber());
-    Serial.print("Range Filter: ");
-    Serial.println(DW1000Ranging.isRangeFilterEnabled() ? "Enabled" : "Disabled");
+    // Serial.print("Range Filter: ");
+    // Serial.println(DW1000Ranging.isRangeFilterEnabled() ? "Enabled" : "Disabled");
     Serial.println("==========================\n");
 }
 
