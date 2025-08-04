@@ -1,12 +1,28 @@
 #include <Arduino.h>
-
+#include <Wire.h>
 #include <SPI.h>
 #include "DW1000Ranging.h"
+
+// Display support
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
 // Connection pins
 #define PIN_RST 27
 #define PIN_IRQ 34
 #define PIN_SS 4
+
+// Display pins (standard for ESP32 UWB Pro with Display)
+#define I2C_SDA 21
+#define I2C_SCL 22
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+// Global display enable flag
+bool DISPLAY_ENABLED = true;
+
+// Create display object
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Tag configuration
 #define TAG_ADDR "7D:00:22:EA:82:60:3B:9C"
@@ -28,6 +44,7 @@ int anchorCount = 0;
 uint32_t totalRanges = 0;
 uint32_t lastStatsTime = 0;
 uint32_t rangesPerSecond = 0;
+uint32_t lastDisplayUpdate = 0;
 
 void newRange();
 void rangeComplete(DW1000Device* device);
@@ -40,8 +57,9 @@ int getActiveAnchorCount();
 void checkInactiveAnchors();
 void printStatistics();
 void calculatePosition();
-void printDeviceInfo();
-void triggerRanging();
+void displayInit();
+void displayUpdate();
+void displayInitStatus(const char* message);
 
 void setup() {
     Serial.begin(115200);
@@ -49,6 +67,12 @@ void setup() {
     
     Serial.println("Multi-Anchor UWB Tag Example");
     Serial.println("============================");
+    
+    // Initialize display if enabled
+    if (DISPLAY_ENABLED) {
+        displayInit();
+        displayInitStatus("Initializing...");
+    }
     
     // Initialize anchor tracking
     for (int i = 0; i < MAX_ANCHORS; i++) {
@@ -74,12 +98,13 @@ void setup() {
     DW1000Ranging.attachRangeComplete(rangeComplete);
     DW1000Ranging.attachProtocolError(protocolError);
     
-    // // Enable range filtering for more stable readings
-    // DW1000Ranging.useRangeFilter(true);
-    // DW1000Ranging.setRangeFilterValue(10);
-    
     Serial.println("Tag initialized. Waiting for anchors...");
     Serial.println();
+    
+    if (DISPLAY_ENABLED) {
+        displayInitStatus("Tag Ready");
+        delay(1000);
+    }
 }
 
 void loop() {
@@ -91,8 +116,104 @@ void loop() {
         lastStatsTime = millis();
     }
     
+    // Update display every 500ms if enabled
+    if (DISPLAY_ENABLED && (millis() - lastDisplayUpdate > 500)) {
+        displayUpdate();
+        lastDisplayUpdate = millis();
+    }
+    
     // Check for inactive anchors
     checkInactiveAnchors();
+}
+
+// Display initialization
+void displayInit() {
+    Wire.begin(I2C_SDA, I2C_SCL);
+    delay(100);
+    
+    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        DISPLAY_ENABLED = false;
+        return;
+    }
+    
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.display();
+}
+
+// Display initialization status
+void displayInitStatus(const char* message) {
+    if (!DISPLAY_ENABLED) return;
+    
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    
+    display.setCursor(0, 0);
+    display.println("UWB Tag");
+    
+    display.setCursor(0, 20);
+    display.println(message);
+    
+    display.display();
+}
+
+// Display update function
+void displayUpdate() {
+    if (!DISPLAY_ENABLED) return;
+    
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    
+    int cursorY = 0;
+    
+    // Title
+    display.setCursor(0, cursorY);
+    display.println("UWB Tag");
+    cursorY += 10;
+    
+    // Active anchors count
+    display.setCursor(0, cursorY);
+    display.print("Anchors: ");
+    display.print(getActiveAnchorCount());
+    display.print("/");
+    display.print(anchorCount);
+    cursorY += 10;
+    
+    // Ranges per second
+    display.setCursor(0, cursorY);
+    display.print("Ranges/s: ");
+    display.print(rangesPerSecond);
+    cursorY += 10;
+    
+    // Display first few active anchors with range
+    int anchorsDisplayed = 0;
+    for (int i = 0; i < anchorCount && anchorsDisplayed < 3 && cursorY < SCREEN_HEIGHT - 10; i++) {
+        if (knownAnchors[i].isActive) {
+            display.setCursor(0, cursorY);
+            display.print("0x");
+            display.print(knownAnchors[i].shortAddress, HEX);
+            display.print(": ");
+            display.print(knownAnchors[i].lastRange, 1);
+            display.print("m");
+            cursorY += 10;
+            anchorsDisplayed++;
+        }
+    }
+    
+    // Show "No active anchors" if none found
+    if (anchorsDisplayed == 0 && anchorCount > 0) {
+        display.setCursor(0, cursorY);
+        display.println("No active anchors");
+    } else if (anchorCount == 0) {
+        display.setCursor(0, cursorY);
+        display.println("No anchors found");
+    }
+    
+    display.display();
 }
 
 // Legacy callback for backward compatibility
@@ -107,7 +228,7 @@ void newRange() {
     }
 }
 
-// NEW: Multi-anchor range complete callback
+// Multi-anchor range complete callback
 void rangeComplete(DW1000Device* device) {
     totalRanges++;
     
@@ -130,22 +251,35 @@ void rangeComplete(DW1000Device* device) {
     if (getActiveAnchorCount() >= 3) {
         calculatePosition();
     }
+    
+    // Update display immediately when new range is received
+    if (DISPLAY_ENABLED) {
+        displayUpdate();
+    }
 }
 
-// NEW: Protocol error callback
+// Protocol error callback
 void protocolError(DW1000Device* device, int errorCode) {
     Serial.print("Protocol Error - Anchor: 0x");
     Serial.print(device->getShortAddress(), HEX);
     Serial.print(" Error Code: ");
     Serial.println(errorCode);
+}
+
+// Blink callback - specific to tag mode
+void newBlink(DW1000Device* device) {
+    Serial.print("Blink received from Anchor: 0x");
+    Serial.print(device->getShortAddress(), HEX);
+    Serial.print(" Address: ");
     
-    // Mark anchor as potentially problematic
-    for (int i = 0; i < anchorCount; i++) {
-        if (knownAnchors[i].shortAddress == device->getShortAddress()) {
-            // Could implement error counting and temporary blacklisting here
-            break;
-        }
+    // Print full address
+    byte* addr = device->getByteAddress();
+    for (int i = 0; i < 8; i++) {
+        if (addr[i] < 16) Serial.print("0");
+        Serial.print(addr[i], HEX);
+        if (i < 7) Serial.print(":");
     }
+    Serial.println();
 }
 
 void newDevice(DW1000Device* device) {
@@ -164,6 +298,11 @@ void newDevice(DW1000Device* device) {
     
     // Add to known anchors list
     addAnchor(device);
+    
+    // Update display immediately when new anchor is discovered
+    if (DISPLAY_ENABLED) {
+        displayUpdate();
+    }
 }
 
 void inactiveDevice(DW1000Device* device) {
